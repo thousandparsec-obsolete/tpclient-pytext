@@ -628,6 +628,7 @@ Get the description for a component.
 			self.pprint("Used: " + str(r[0].used))
 			self.pprint("Types: " + str(r[0].used))
 			self.pprint("Name: " + str(r[0].name))
+			self.pprint("Description: " + str(r[0].description))
 			self.pprint("Contains: " + str(r[0].contains))
 			self.pprint("Language: " + str(r[0].language))
 		else:
