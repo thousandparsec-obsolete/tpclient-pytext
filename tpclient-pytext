@@ -65,6 +65,39 @@ class PyTextClient(cmd.Cmd):
 	def pprint(self, string):
 		self.columnize([string])
 		
+	## Python Functions ########################
+	def do_exec(self, line):
+		"""\
+exec *python_code_to_execute
+
+Execute python code following the exec command.
+Nothing will presist after the command executes.
+
+For example,
+
+-> exec print 2 + 2
+4
+-> exec a = []
+-> exec print a
+name 'a' is not defined
+"""
+		exec(line)
+		
+	def do_print(self, line):
+		"""\
+print object_to_print
+
+Execute python code following the exec command. For example,
+
+user@localhost 'The Universe' -> print 2 2
+2
+2
+user@localhost 'The Universe' -> print self.o
+<netlib.objects.ObjectExtra.Universe.Universe @ 0x4020fe0c>
+"""
+		for i in string.split(line):
+			exec("print %s" % i)
+
 	## Exit ####################################
 	def do_exit(self, line):
 		"""\
