@@ -299,6 +299,26 @@ Enter into the object so you can select.
 		else:
 			self.pprint("No such object. \n")
 	
+	## IDs #####################################
+	def do_ids(self, line):
+		"""\
+ids type
+
+Gets the ids for type.
+"""
+		return self.args(line, self.ids)
+		
+	def ids(self, id):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_object_ids()
+		if not failed(r):
+			self.pprint(repr(r))
+		else:
+			self.pprint("No such object. \n")
+	
 	## Board ##################################
 	def do_board(self, line):
 		"""\
