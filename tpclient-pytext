@@ -26,8 +26,12 @@ class PyTextClient(cmd.Cmd):
 
 		rc = os.path.expanduser("~")
 		if rc != "~":
+			rc = os.path.join(rc, ".tp")
+			if not os.path.exists(rc):
+				os.mkdir(rc)
+		
 			# Import the .pytext_history
-			file = os.path.join(rc, ".pytext_history")
+			file = os.path.join(rc, "pytext_history")
 			if os.path.exists(file):
 				self.pprint("Found history file: %s" % file)
 				data = open(file, "r+").read()
@@ -43,7 +47,7 @@ class PyTextClient(cmd.Cmd):
 				self.history = []
 
 			# Import the .pytextrc
-			file = os.path.join(rc, ".pytextrc")
+			file = os.path.join(rc, "pytextrc")
 			if os.path.exists(file):
 				self.pprint("Found rc file: %s" % file)
 				data = open(file, "r+").read()
@@ -62,10 +66,14 @@ class PyTextClient(cmd.Cmd):
 	def postloop(self):
 		rc = os.path.expanduser("~")
 		if rc != "~":
+			rc = os.path.join(rc, ".tp")
+			if not os.path.exists(rc):
+				os.mkdir(rc)
+
 			data = "\n".join(self.history)
 			
 			# Save the .pytext_history
-			file = os.path.join(rc, ".pytext_history")
+			file = os.path.join(rc, "pytext_history")
 			print "Writing a history: %s" % file
 			open(file, "w+").write(data)
 			
