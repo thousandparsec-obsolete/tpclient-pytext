@@ -13,6 +13,8 @@ class PyTextClient(cmd.Cmd):
 	def __init__(self, completekey='tab', stdin=None, stdout=None):
 		cmd.Cmd.__init__(self, completekey, stdin, stdout)
 
+		self.debug = 0
+
 		# Clear the storage
 		self.c=None
 		self.o=None
@@ -108,13 +110,23 @@ class PyTextClient(cmd.Cmd):
 
 	completedefault = complete_default
 
+	## Debug Functions #########################
+	def do_debug(self, args):
+		"""\
+Toggle debug mode.
+"""
+		self.debug = not self.debug
+		if self.c != None:
+			self.c.debug = self.debug
+		
 	## History Functions #######################
 	def do_history(self, args):
 		"""\
 Print a list of commands that have been entered.
 """
 		for line in self.history:
-			self.pprint(line)
+			if args == "" or line.startswith(args):
+				self.pprint(line)
 
 	## Shell Functions #########################
 	def do_shell(self, args):
@@ -181,9 +193,10 @@ uses port 6329.
 	def connect(self, host, port=6923):
 		self.pprint("Connecting to %s on %s ... \n" % (host, port))
 		
-		self.c = netlib.Connection(host, port, debug=1)
+		self.c = netlib.Connection(host, port, debug=self.debug)
 		if not self.c.connect():
 			self.c = None
+			self.o = None
 			self.pprint("Could not connect to the server. \n")
 		else:
 			self.o = None
@@ -194,7 +207,7 @@ uses port 6329.
 			return ["localhost"]
 		if text == "127.0.0.1"[:len(text)]:
 			return ["127.0.0.1"]
-		return []
+		return self.complete_default(text, line, begidx, endidx)
 
 	## Disconnect ##############################
 	def do_disconnect(self, line):
@@ -347,7 +360,7 @@ Lists the orders in the current object.
 
 		return apply(self.c.insert_order, (self.o.id, type, slot,) + tuple(args))
 
-	## Add Order ###############################
+	## Time Stuff ##############################
 	def do_time(self, line):
 		"""\
 order_add 
