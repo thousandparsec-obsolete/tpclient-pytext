@@ -1,0 +1,233 @@
+
+import string, traceback
+import sys
+sys.path.append("../")
+sys.path.append("../netlib")
+
+import netlib
+
+def help(topic=""):
+	"""\
+	help [topic]
+
+	Find out how to use a command.
+"""
+	if topic == "":
+		help = "Possible commands:\n\n"
+
+		for command in fmap.values():
+			help += string.split(command.__doc__, "\n")[0] + "\n"
+
+		stdout.write(help)
+		return
+		
+	if globals().has_key(topic):
+		stdout.write(globals()[topic].__doc__)
+
+def connect(host, port=6923):
+	"""\
+	connect host [port]
+
+	Connect to a TP server on host, if port is not specified it
+	uses port 6329.
+"""
+	global CONNECTION
+	
+	stdout.write("Connecting to %s on %s ... \n" % (host, port))
+	
+	CONNECTION = netlib.Connection(host, port, debug=1)
+	if not CONNECTION.connect():
+		CONNECTION = None
+		stderr.write("Could not connect to the server. \n")
+	else:
+		OBJECT = None
+		stdout.write("Connected. \n")
+
+def disconnect():
+	"""\
+	disconnect
+
+	Disconnect from the server.
+"""
+	global CONNECTION
+	if CONNECTION == None:
+		stderr.write("Not connected. \n")
+		return
+
+	CONNECTION.disconnect()
+	CONNECTION = None
+	stdout.write("Disconnected. \n")
+
+def login(username, password):
+	"""\
+	login username password
+
+	Login with a username and password.
+"""
+	global CONNECTION
+	if CONNECTION == None:
+		stderr.write("Not connected. \n")
+		return
+
+	if not CONNECTION.login(username, password):
+		stderr.write("Could not login. \n")
+	else:
+		stdout.write("Login OK. \n")
+
+def object(id):
+	"""\
+	object id
+
+	Enter into the object so you can select.
+"""
+	global CONNECTION, OBJECT
+	if CONNECTION == None:
+		stderr.write("Not connected. \n")
+		return
+
+	OBJECT = CONNECTION.get_objects(int(id))[0]
+
+def show(name=""):
+	"""\
+	show [name]
+
+	Displays the value of an attribute on an object.
+"""
+	global CONNECTION
+	if CONNECTION == None:
+		stderr.write("Not connected. \n")
+		return
+	if OBJECT == None:
+		stderr.write("No object. \n")
+		return
+
+	if name == "":
+		for name in OBJECT.__dict__.keys():
+			show(name)
+	else:
+		if hasattr(OBJECT, name):
+			stdout.write("%s: %s \n" % (name, getattr(OBJECT, name)))
+		else:
+			stderr.write("No such attribute.")
+	
+
+def objects(id):
+	"""\
+	objects
+
+	Lists the objects in the current object.
+"""
+	pass
+
+def orders():
+	"""\
+	orders
+
+	Lists the orders in the current object.
+"""
+	global CONNECTION
+	if CONNECTION == None:
+		stderr.write("Not connected. \n")
+		return
+	if OBJECT == None:
+		stderr.write("No object. \n")
+		return
+
+	print CONNECTION.get_orders(OBJECT.id)
+
+def objects():
+	"""\
+	objects
+
+	Lists the objects in the current object.
+"""
+	if OBJECT == None:
+		pass
+	pass
+
+"""\
+None -> connect localhost
+None -> login person password
+None -> object 0
+Name: universe
+Universe -> objects
+1: 'planet'
+5: 'ship'
+Universe -> object 5
+name: PX345-23
+PX345-23 -> orders
+0: 'move' (10, 5, 2)
+1: 'move' (21, 10, 5)
+PX345-23 -> del 0
+PX345-23 -> insert 0 move 
+PX345-23 move (destination) -> 16, 5, 2
+PX345-23 -> insert 2 load
+PX345-23 load (amount) -> 100
+PX345-23 load (type) -> krypton
+PX345-23 -> orders
+0: 'move' (16, 5, 2)
+1: 'move' (21, 10, 5)
+2: 'load' 100 krypton
+"""
+	
+fmap = {
+		'help': help,
+		'connect': connect,
+		'disconnect': disconnect,
+		'login': login,
+		'object': object,
+		'objects': objects,
+		'orders': orders,
+		'show': show,
+}
+
+stdin = sys.stdin
+stdout = sys.stdout
+stderr = sys.stderr
+
+CONNECTION = None
+OBJECT = None
+
+def main():
+
+	finished = False
+	while not finished:
+		try:
+			if OBJECT == None:
+				sys.stdout.write("None -> ")
+			else:
+				sys.stdout.write("%s -> " % OBJECT.name)
+				
+			line = stdin.readline().strip()
+
+			command = string.split(line, " ", maxsplit=1)
+			if command[0] == "":
+				continue
+			elif command[0] == "exit":
+				sys.stdout.write("Exiting... \n")
+				finished = True
+			else:
+				if not fmap.has_key(command[0]):
+					sys.stdout.write("No such command \n")
+				else:
+					function = fmap[command[0]]
+
+					arguments = []
+					if len(command) == 2:
+						arguments = string.split(command[1], " ")
+					
+					apply(function, arguments)
+
+		except KeyboardInterrupt:
+			# Exit on a Ctrl-C
+			sys.stdout.write("\nExiting... \n")
+			finished = True
+
+		except Exception, e:
+			# Print Traceback
+			type, val, tb = sys.exc_info()
+			sys.stderr.write(string.join(traceback.format_exception(type, val, tb), ''))
+
+if __name__ == "__main__":
+	main()
+
