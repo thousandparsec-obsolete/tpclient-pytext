@@ -5,27 +5,9 @@ import sys
 sys.path.append("../")
 
 import netlib
-
-def help(topic=""):
-	"""\
-	help [topic]
-
-	Find out how to use a command.
-"""
-	if topic == "":
-		help = "Possible commands:\n\n"
-
-		for command in fmap.values():
-			help += string.split(command.__doc__, "\n")[0] + "\n"
-
-		self.pprint(help)
-		return
-		
-	if globals().has_key(topic):
-		self.pprint(globals()[topic].__doc__)
-
-
 import cmd
+
+from types import *
 
 class PyTextClient(cmd.Cmd):
 	def __init__(self, completekey='tab', stdin=None, stdout=None):
@@ -35,9 +17,19 @@ class PyTextClient(cmd.Cmd):
 		self.c=None
 		self.o=None
 
-		# Import the .pytextrc
 		rc = os.path.expanduser("~")
 		if rc != "~":
+			# Import the .pytext_history
+			file = os.path.join(rc, ".pytext_history")
+			if os.path.exists(file):
+				self.pprint("Found history file: %s" % file)
+				data = open(file, "r+").read()
+				
+				self.history = string.split(data, "\n")[:-1]
+			else:
+				self.history = []
+
+			# Import the .pytextrc
 			file = os.path.join(rc, ".pytextrc")
 			if os.path.exists(file):
 				self.pprint("Found rc file: %s" % file)
@@ -50,7 +42,19 @@ class PyTextClient(cmd.Cmd):
 
 		# Set the prompt
 		self.promptset()
-		
+	
+	def postloop(self):
+		rc = os.path.expanduser("~")
+		if rc != "~":
+			data = "\n".join(self.history)
+			
+			# Save the .pytext_history
+			file = os.path.join(rc, ".pytext_history")
+			print "Writing a history: %s" % file
+			open(file, "w+").write(data)
+			
+		cmd.Cmd.postloop(self)
+
 	def args(self, line, function):
 		line = line.strip()
 		if line == "":
@@ -60,11 +64,13 @@ class PyTextClient(cmd.Cmd):
 
 		return apply(function, arguments)
 
-	def emptyline(self):
-		pass
-
 	def postcmd(self, stop, line):
 		self.promptset()
+
+		if len(line.strip()) > 0:
+			self.history.append(line.strip())
+
+		return stop
 
 	def promptset(self):
 		h = "None"
@@ -81,7 +87,42 @@ class PyTextClient(cmd.Cmd):
 
 	def pprint(self, string):
 		self.columnize([string])
-		
+	
+
+	## Default Functions #######################
+	def emptyline(self):
+		pass
+
+	def complete_default(self, text, line, begidx, endidx):
+		# Only do completion if there is something to match on
+		r = []
+	
+		# Just look at the history (dont look back more then 100)
+		for h in self.history[100::-1]:
+			if h.startswith(line):
+				if h == line:
+					continue
+				r.append(h[begidx:])
+
+		return r
+
+	completedefault = complete_default
+
+	## History Functions #######################
+	def do_history(self, args):
+		"""\
+Print a list of commands that have been entered.
+"""
+		for line in self.history:
+			self.pprint(line)
+
+	## Shell Functions #########################
+	def do_shell(self, args):
+		"""\
+Pass command to a system shell.
+"""
+		os.system(args)
+
 	## Python Functions ########################
 	def do_exec(self, line):
 		"""\
@@ -122,9 +163,10 @@ exit, quit
 
 Leave the PyText-Client.
 """
-		sys.exit(0)
+		return -1
 
 	do_quit = do_exit
+	do_EOF = do_exit
 
 	## Connect #################################
 	def do_connect(self, line):
@@ -206,7 +248,7 @@ Enter into the object so you can select.
 			return
 
 		r = self.c.get_objects(int(id))
-		if r:
+		if type(r[0]) != TupleType:
 			self.o = r[0]
 		else:
 			self.pprint("No such object. \n")
@@ -305,16 +347,46 @@ Lists the orders in the current object.
 
 		return apply(self.c.insert_order, (self.o.id, type, slot,) + tuple(args))
 
+	## Add Order ###############################
+	def do_time(self, line):
+		"""\
+order_add 
+
+Lists the orders in the current object.
+"""
+		return self.args(line, self.time)
+
+	def time(self):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.time()
+		if r[0]:
+			sh = 60*60
+			sm = 60
+			
+			hour = int(r[1]/sh)
+			min = int((r[1]-hour*sh)/sm)
+			sec = r[1]-hour*sh-min*sm
+
+			self.pprint("Turn ends: %i hours %i min %i seconds." % (hour, min, sec))
+		else:
+			self.pprint("Turn has ended.")
+
+
 def main():
 	m = PyTextClient()
 	while True:
-#		try:
+		try:
 			m.cmdloop()
-#		except SystemExit, e:
-#			break
-#		except Exception, e:
-#			print e
-#			continue
+		except SystemExit, e:
+			break
+		except Exception, e:
+			print e
+			continue
+		else:
+			return
 
 if __name__ == "__main__":
 	main()
