@@ -28,6 +28,10 @@ class PyTextClient(cmd.Cmd):
 				data = open(file, "r+").read()
 				
 				self.history = string.split(data, "\n")[:-1]
+
+				import readline
+				for line in self.history:
+					readline.add_history(line)
 			else:
 				self.history = []
 
@@ -167,6 +171,16 @@ user@localhost 'The Universe' -> print self.o
 """
 		for i in string.split(line):
 			exec("print %s" % i)
+
+	def do_traceback(self, line):
+		"""\
+traceback
+
+Print the traceback for the last error.
+"""
+		import traceback
+		type, val, tb = sys.exc_info()
+		self.pprint(string.join(traceback.format_exception(type, val, tb), ''))
 
 	## Exit ####################################
 	def do_exit(self, line):
@@ -320,6 +334,9 @@ Lists the orders in the current object.
 		for i in range(0, len(slots)):
 			slots[i] = int(slots[i])
 		
+		if len(slots) == 0:
+			slots = range(0, self.o.order_number)
+		
 		if self.c == None:
 			self.pprint("Not connected. \n")
 			return
@@ -327,7 +344,12 @@ Lists the orders in the current object.
 			self.pprint("No object. \n")
 			return
 
-		print self.c.get_orders(self.o.id, slots)
+		r = self.c.get_orders(self.o.id, slots)
+		if type(r) == ListType:
+			for i in r:
+				self.pprint(str(i))
+		else:
+			self.pprint(str(r))
 		
 	## Add Order ###############################
 	def do_order_insert(self, line):
@@ -338,7 +360,7 @@ Lists the orders in the current object.
 """
 		return self.args(line, self.order_insert)
 
-	def order_insert(self, type, slot, *args):
+	def order_insert(self, slot, type, *args):
 		slot = int(slot)
 		args = list(args)
 
@@ -358,7 +380,7 @@ Lists the orders in the current object.
 			self.pprint("No object. \n")
 			return
 
-		return apply(self.c.insert_order, (self.o.id, type, slot,) + tuple(args))
+		self.pprint(str(apply(self.c.insert_order, (self.o.id, slot, type,) + tuple(args))))
 
 	## Time Stuff ##############################
 	def do_time(self, line):
