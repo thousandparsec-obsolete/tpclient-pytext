@@ -292,6 +292,9 @@ Lists the orders in the current object.
 			args[0] = int(args[0])
 		elif type.lower() == 'move':
 			type = 1
+			args[0] = int(args[0])
+			args[1] = int(args[1])
+			args[2] = int(args[2])
 
 		if self.c == None:
 			self.pprint("Not connected. \n")
