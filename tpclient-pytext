@@ -1,10 +1,15 @@
 
 import os.path
 import string, traceback
-import sys
-sys.path.append("../")
 
-import netlib
+try:
+	from tp import netlib
+except ImportError:
+	import sys
+	sys.path.append("../")
+
+	import netlib
+
 import cmd
 
 from types import *
@@ -279,7 +284,111 @@ Enter into the object so you can select.
 			self.o = r[0]
 		else:
 			self.pprint("No such object. \n")
+	
+	## Board ##################################
+	def do_board(self, line):
+		"""\
+board id
+
+Enter into the board so you can select messages.
+"""
+		return self.args(line, self.board)
 		
+	def board(self, id):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_boards(int(id))
+		if r[0] and type(r[0]) != TupleType:
+			self.o = r[0]
+		else:
+			self.pprint("No such object. \n")
+
+
+	## Messages ##################################
+	def do_messages(self, line):
+		"""\
+messages [slot]
+
+Lists the message in the current board.
+"""
+		return self.args(line, self.messages)
+
+	def messages(self, *slots):
+		slots = list(slots)
+		for i in range(0, len(slots)):
+			slots[i] = int(slots[i])
+		
+		if len(slots) == 0:
+			slots = range(0, self.o.number)
+		
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No board. \n")
+			return
+
+		r = self.c.get_messages(self.o.id, slots)
+		if type(r) == ListType:
+			for i in r:
+				self.pprint(str(i))
+		else:
+			self.pprint(str(r))
+		
+	def do_message_remove(self, line):
+		"""\
+message_remove [slot]
+
+Remove an message from the current board object.
+"""
+		return self.args(line, self.message_remove)
+
+	def message_remove(self, *slots):
+		slots = list(slots)
+		for i in range(0, len(slots)):
+			slots[i] = int(slots[i])
+		
+		if len(slots) == 0:
+			slots = range(0, self.o.number)
+		
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No board. \n")
+			return
+
+		r = self.c.remove_messages(self.o.id, slots)
+		if type(r) == ListType:
+			for i in r:
+				self.pprint(str(i))
+		else:
+			self.pprint(str(r))
+
+	## Add Order ###############################
+	def do_message_insert(self, line):
+		"""\
+message_insert slot subject body
+
+Adds a new message to the board.
+"""
+		return self.args(line, self.message_insert)
+
+	def order_insert(self, slot, type, *args):
+		slot = int(slot)
+		args = list(args)
+
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No object. \n")
+			return
+
+#		self.pprint(str(apply(self.c.insert_order, (self.o.id, slot, type,) + tuple(args))))
+
 	## Show ####################################
 	def do_show(self, line):
 		"""\
@@ -355,7 +464,7 @@ Lists the orders in the current object.
 		"""\
 order_remove [slot]
 
-Remove an order from the current current object.
+Remove an order from the current object.
 """
 		return self.args(line, self.order_remove)
 
@@ -384,9 +493,12 @@ Remove an order from the current current object.
 	## Add Order ###############################
 	def do_order_insert(self, line):
 		"""\
-order_add 
+order_insert slot type args
 
-Lists the orders in the current object.
+order_insert 1 NOp 23
+order_insert -1 Move 2 6 9
+
+Inserts a order onto the current object.
 """
 		return self.args(line, self.order_insert)
 
@@ -438,7 +550,6 @@ Lists the orders in the current object.
 			self.pprint("Turn ends: %i hours %i min %i seconds." % (hour, min, sec))
 		else:
 			self.pprint("Turn has ended.")
-
 
 def main():
 	m = PyTextClient()
