@@ -31,7 +31,7 @@ def connect(host, port=6923):
 	Connect to a TP server on host, if port is not specified it
 	uses port 6329.
 """
-	global CONNECTION
+	global CONNECTION, OBJECT
 	
 	stdout.write("Connecting to %s on %s ... \n" % (host, port))
 	
@@ -85,8 +85,13 @@ def object(id):
 		stderr.write("Not connected. \n")
 		return
 
-	OBJECT = CONNECTION.get_objects(int(id))[0]
-
+	r = CONNECTION.get_objects(int(id))
+	if r:
+		OBJECT = r[0]
+	else:
+		stderr.write("No such object. \n")
+		return
+		
 def show(name=""):
 	"""\
 	show [name]
