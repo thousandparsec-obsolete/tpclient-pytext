@@ -231,6 +231,8 @@ Displays the value of an attribute on an object.
 		if name == "":
 			for name in self.o.__dict__.keys():
 				self.show(name)
+		elif name == "object":
+			self.pprint("%s" % self.o)
 		else:
 			if hasattr(self.o, name):
 				self.pprint("%s: %s \n" % (name, getattr(self.o, name)))
@@ -259,6 +261,7 @@ Lists the orders in the current object.
 		return self.args(line, self.orders)
 
 	def orders(self, *slots):
+		slots = list(slots)
 		for i in range(0, len(slots)):
 			slots[i] = int(slots[i])
 		
@@ -269,7 +272,35 @@ Lists the orders in the current object.
 			self.pprint("No object. \n")
 			return
 
-		return self.c.get_orders(self.o.id, slots)
+		print self.c.get_orders(self.o.id, slots)
+		
+	## Add Order ###############################
+	def do_order_insert(self, line):
+		"""\
+order_add 
+
+Lists the orders in the current object.
+"""
+		return self.args(line, self.order_insert)
+
+	def order_insert(self, type, slot, *args):
+		slot = int(slot)
+		args = list(args)
+
+		if type.lower() == 'nop':
+			type = 0
+			args[0] = int(args[0])
+		elif type.lower() == 'move':
+			type = 1
+
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No object. \n")
+			return
+
+		return apply(self.c.insert_order, (self.o.id, type, slot,) + tuple(args))
 
 def main():
 	m = PyTextClient()
