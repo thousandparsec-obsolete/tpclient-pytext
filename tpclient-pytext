@@ -178,7 +178,7 @@ traceback
 
 Print the traceback for the last error.
 """
-		import traceback
+		import traceback, pprint
 		type, val, tb = sys.exc_info()
 		self.pprint(string.join(traceback.format_exception(type, val, tb), ''))
 
@@ -275,7 +275,7 @@ Enter into the object so you can select.
 			return
 
 		r = self.c.get_objects(int(id))
-		if type(r[0]) != TupleType:
+		if r[0] and type(r[0]) != TupleType:
 			self.o = r[0]
 		else:
 			self.pprint("No such object. \n")
@@ -323,7 +323,7 @@ Lists the objects in the current object.
 	## Orders ##################################
 	def do_orders(self, line):
 		"""\
-orders
+orders [slot]
 
 Lists the orders in the current object.
 """
@@ -351,6 +351,36 @@ Lists the orders in the current object.
 		else:
 			self.pprint(str(r))
 		
+	def do_order_remove(self, line):
+		"""\
+order_remove [slot]
+
+Remove an order from the current current object.
+"""
+		return self.args(line, self.order_remove)
+
+	def order_remove(self, *slots):
+		slots = list(slots)
+		for i in range(0, len(slots)):
+			slots[i] = int(slots[i])
+		
+		if len(slots) == 0:
+			slots = range(0, self.o.order_number)
+		
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No object. \n")
+			return
+
+		r = self.c.remove_orders(self.o.id, slots)
+		if type(r) == ListType:
+			for i in r:
+				self.pprint(str(i))
+		else:
+			self.pprint(str(r))
+
 	## Add Order ###############################
 	def do_order_insert(self, line):
 		"""\
@@ -418,7 +448,8 @@ def main():
 		except SystemExit, e:
 			break
 		except Exception, e:
-			print e
+			type, val, tb = sys.exc_info()
+			print ''.join(traceback.format_exception(type, val, tb))
 			continue
 		else:
 			return
