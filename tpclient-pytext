@@ -585,6 +585,28 @@ Pings the server.
 
 		r = self.c.ping()
 
+	## Object ##################################
+	def do_category(self, line):
+		"""\
+category id
+
+Get the description for a category.
+"""
+		return self.args(line, self.category)
+		
+	def category(self, id):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_categories(int(id))
+		if not failed(r[0]):
+			self.pprint("ID: " + str(r[0].id))
+			self.pprint("Name: " + r[0].name)
+			self.pprint("Desc: " + r[0].desc)
+		else:
+			self.pprint("No such object. \n")
+			
 def main():
 	m = PyTextClient()
 	while True:
