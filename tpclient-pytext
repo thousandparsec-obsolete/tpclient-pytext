@@ -9,6 +9,8 @@ except ImportError:
 
 	import netlib
 
+failed = netlib.failed
+
 import cmd
 
 from types import *
@@ -279,7 +281,7 @@ Enter into the object so you can select.
 			return
 
 		r = self.c.get_objects(int(id))
-		if r[0] and type(r[0]) != TupleType:
+		if not failed(r[0]):
 			self.o = r[0]
 		else:
 			self.pprint("No such object. \n")
@@ -299,10 +301,10 @@ Enter into the board so you can select messages.
 			return
 
 		r = self.c.get_boards(int(id))
-		if r[0] and type(r[0]) != TupleType:
+		if not failed(r[0]):
 			self.o = r[0]
 		else:
-			self.pprint("No such object. \n")
+			self.pprint("No such board. \n")
 
 
 	## Messages ##################################
@@ -329,12 +331,15 @@ Lists the message in the current board.
 			self.pprint("No board. \n")
 			return
 
-		r = self.c.get_messages(self.o.id, slots)
-		if type(r) == ListType:
-			for i in r:
-				self.pprint(str(i))
-		else:
-			self.pprint(str(r))
+		messages = self.c.get_messages(self.o.id, slots)
+		for message in messages:
+			if not failed(message):
+				self.pprint("""\
+
+%(subject)s
+-------------------------
+%(body)s
+""" % message.__dict__)
 		
 	def do_message_remove(self, line):
 		"""\
