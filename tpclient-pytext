@@ -1,4 +1,5 @@
 
+import os.path
 import string, traceback
 import sys
 sys.path.append("../")
@@ -34,12 +35,28 @@ class PyTextClient(cmd.Cmd):
 		self.c=None
 		self.o=None
 
+		# Import the .pytextrc
+		rc = os.path.expanduser("~")
+		if rc != "~":
+			file = os.path.join(rc, ".pytextrc")
+			if os.path.exists(file):
+				self.pprint("Found rc file: %s" % file)
+				data = open(file, "r+").read()
+				
+				for line in string.split(data, "\n")[:-1]:
+					self.pprint("Running line: %s" % line)
+					
+					self.onecmd(line)
+
 		# Set the prompt
 		self.promptset()
 		
 	def args(self, line, function):
 		line = line.strip()
-		arguments = string.split(line, " ")
+		if line == "":
+			arguments = []
+		else:
+			arguments = string.split(line, " ")
 
 		return apply(function, arguments)
 
@@ -241,7 +258,10 @@ Lists the orders in the current object.
 """
 		return self.args(line, self.orders)
 
-	def orders(self):
+	def orders(self, *slots):
+		for i in range(0, len(slots)):
+			slots[i] = int(slots[i])
+		
 		if self.c == None:
 			self.pprint("Not connected. \n")
 			return
@@ -249,7 +269,7 @@ Lists the orders in the current object.
 			self.pprint("No object. \n")
 			return
 
-		print self.c.get_orders(o.id)
+		return self.c.get_orders(self.o.id, slots)
 
 def main():
 	m = PyTextClient()
