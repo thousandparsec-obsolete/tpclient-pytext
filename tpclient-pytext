@@ -6,8 +6,7 @@ try:
 	from tp import netlib
 except ImportError:
 	sys.path.append("../")
-
-	import netlib
+	from tp import netlib
 
 failed = netlib.failed
 
@@ -37,6 +36,8 @@ class PyTextClient(cmd.Cmd):
 
 				import readline
 				for line in self.history:
+					if line.startswith("#"):
+						continue
 					readline.add_history(line)
 			else:
 				self.history = []
@@ -48,6 +49,9 @@ class PyTextClient(cmd.Cmd):
 				data = open(file, "r+").read()
 				
 				for line in string.split(data, "\n")[:-1]:
+					if line.startswith("#"):
+						continue
+
 					self.pprint("Running line: %s" % line)
 					
 					self.onecmd(line)
@@ -412,7 +416,8 @@ Displays the value of an attribute on an object.
 
 		if name == "":
 			for name in self.o.__dict__.keys():
-				self.show(name)
+				if not name.startswith('_'):
+					self.show(name)
 		elif name == "object":
 			self.pprint("%s" % self.o)
 		else:
