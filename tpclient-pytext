@@ -2,7 +2,6 @@
 import string, traceback
 import sys
 sys.path.append("../")
-sys.path.append("../netlib")
 
 import netlib
 
@@ -18,220 +17,217 @@ def help(topic=""):
 		for command in fmap.values():
 			help += string.split(command.__doc__, "\n")[0] + "\n"
 
-		stdout.write(help)
+		self.pprint(help)
 		return
 		
 	if globals().has_key(topic):
-		stdout.write(globals()[topic].__doc__)
+		self.pprint(globals()[topic].__doc__)
 
-def connect(host, port=6923):
-	"""\
-	connect host [port]
 
-	Connect to a TP server on host, if port is not specified it
-	uses port 6329.
-"""
-	global CONNECTION, OBJECT
-	
-	stdout.write("Connecting to %s on %s ... \n" % (host, port))
-	
-	CONNECTION = netlib.Connection(host, port, debug=1)
-	if not CONNECTION.connect():
-		CONNECTION = None
-		stderr.write("Could not connect to the server. \n")
-	else:
-		OBJECT = None
-		stdout.write("Connected. \n")
+import cmd
 
-def disconnect():
-	"""\
-	disconnect
+class PyTextClient(cmd.Cmd):
+	def __init__(self, completekey='tab', stdin=None, stdout=None):
+		cmd.Cmd.__init__(self, completekey, stdin, stdout)
 
-	Disconnect from the server.
-"""
-	global CONNECTION
-	if CONNECTION == None:
-		stderr.write("Not connected. \n")
-		return
+		# Clear the storage
+		self.c=None
+		self.o=None
 
-	CONNECTION.disconnect()
-	CONNECTION = None
-	stdout.write("Disconnected. \n")
-
-def login(username, password):
-	"""\
-	login username password
-
-	Login with a username and password.
-"""
-	global CONNECTION
-	if CONNECTION == None:
-		stderr.write("Not connected. \n")
-		return
-
-	if not CONNECTION.login(username, password):
-		stderr.write("Could not login. \n")
-	else:
-		stdout.write("Login OK. \n")
-
-def object(id):
-	"""\
-	object id
-
-	Enter into the object so you can select.
-"""
-	global CONNECTION, OBJECT
-	if CONNECTION == None:
-		stderr.write("Not connected. \n")
-		return
-
-	r = CONNECTION.get_objects(int(id))
-	if r:
-		OBJECT = r[0]
-	else:
-		stderr.write("No such object. \n")
-		return
+		# Set the prompt
+		self.promptset()
 		
-def show(name=""):
-	"""\
-	show [name]
+	def args(self, line, function):
+		line = line.strip()
+		arguments = string.split(line, " ")
 
-	Displays the value of an attribute on an object.
-"""
-	global CONNECTION
-	if CONNECTION == None:
-		stderr.write("Not connected. \n")
-		return
-	if OBJECT == None:
-		stderr.write("No object. \n")
-		return
+		return apply(function, arguments)
 
-	if name == "":
-		for name in OBJECT.__dict__.keys():
-			show(name)
-	else:
-		if hasattr(OBJECT, name):
-			stdout.write("%s: %s \n" % (name, getattr(OBJECT, name)))
-		else:
-			stderr.write("No such attribute.")
-	
-
-def objects(id):
-	"""\
-	objects
-
-	Lists the objects in the current object.
-"""
-	pass
-
-def orders():
-	"""\
-	orders
-
-	Lists the orders in the current object.
-"""
-	global CONNECTION
-	if CONNECTION == None:
-		stderr.write("Not connected. \n")
-		return
-	if OBJECT == None:
-		stderr.write("No object. \n")
-		return
-
-	print CONNECTION.get_orders(OBJECT.id)
-
-def objects():
-	"""\
-	objects
-
-	Lists the objects in the current object.
-"""
-	if OBJECT == None:
+	def emptyline(self):
 		pass
-	pass
 
-"""\
-None -> connect localhost
-None -> login person password
-None -> object 0
-Name: universe
-Universe -> objects
-1: 'planet'
-5: 'ship'
-Universe -> object 5
-name: PX345-23
-PX345-23 -> orders
-0: 'move' (10, 5, 2)
-1: 'move' (21, 10, 5)
-PX345-23 -> del 0
-PX345-23 -> insert 0 move 
-PX345-23 move (destination) -> 16, 5, 2
-PX345-23 -> insert 2 load
-PX345-23 load (amount) -> 100
-PX345-23 load (type) -> krypton
-PX345-23 -> orders
-0: 'move' (16, 5, 2)
-1: 'move' (21, 10, 5)
-2: 'load' 100 krypton
+	def postcmd(self, stop, line):
+		self.promptset()
+
+	def promptset(self):
+		h = "None"
+		if self.c != None:
+			h = self.c.host
+		u = "None"
+		if self.c != None and hasattr(self.c, "username"):
+			u = self.c.username
+		o = "None"
+		if self.o != None:
+			o = self.o.name
+
+		self.prompt = "%s@%s '%s' -> " % (u, h, o)
+
+	def pprint(self, string):
+		self.columnize([string])
+		
+	## Exit ####################################
+	def do_exit(self, line):
+		"""\
+exit, quit
+
+Leave the PyText-Client.
 """
+		sys.exit(0)
+
+	do_quit = do_exit
+
+	## Connect #################################
+	def do_connect(self, line):
+		"""\
+connect host [port]
+
+Connect to a TP server on host, if port is not specified it
+uses port 6329.
+"""
+		return self.args(line, self.connect)
+
+	def connect(self, host, port=6923):
+		self.pprint("Connecting to %s on %s ... \n" % (host, port))
+		
+		self.c = netlib.Connection(host, port, debug=1)
+		if not self.c.connect():
+			self.c = None
+			self.pprint("Could not connect to the server. \n")
+		else:
+			self.o = None
+			self.pprint("Connected. \n")
+
+	def complete_connect(self, text, line, begidx, endidx):
+		if text == "localhost"[:len(text)]:
+			return ["localhost"]
+		if text == "127.0.0.1"[:len(text)]:
+			return ["127.0.0.1"]
+		return []
+
+	## Disconnect ##############################
+	def do_disconnect(self, line):
+		"""\
+disconnect
+
+Disconnect from the server.
+"""
+		return self.args(line, self.disconnect)
+
+	def disconnect(self):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		self.c.disconnect()
+		self.c = None
+		self.pprint("Disconnected. \n")
+		
+	## Login ###################################
+	def do_login(self, line):
+		"""\
+login username password
+
+Login with a username and password.
+"""
+		return self.args(line, self.login)
+
+	def login(self, username, password):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		if not self.c.login(username, password):
+			self.pprint("Could not login. \n")
+		else:
+			self.pprint("Login OK. \n")
+
+	## Object ##################################
+	def do_object(self, line):
+		"""\
+object id
+
+Enter into the object so you can select.
+"""
+		return self.args(line, self.object)
+		
+	def object(self, id):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_objects(int(id))
+		if r:
+			self.o = r[0]
+		else:
+			self.pprint("No such object. \n")
+		
+	## Show ####################################
+	def do_show(self, line):
+		"""\
+show [name]
+
+Displays the value of an attribute on an object.
+"""
+		return self.args(line, self.show)
+
+	def show(self, name=""):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No object. \n")
+			return
+
+		if name == "":
+			for name in self.o.__dict__.keys():
+				self.show(name)
+		else:
+			if hasattr(self.o, name):
+				self.pprint("%s: %s \n" % (name, getattr(self.o, name)))
+			else:
+				self.pprint("No such attribute.")
 	
-fmap = {
-		'help': help,
-		'connect': connect,
-		'disconnect': disconnect,
-		'login': login,
-		'object': object,
-		'objects': objects,
-		'orders': orders,
-		'show': show,
-}
+	## Objects #################################
+	def do_objects(self, line):
+		"""\
+objects
 
-stdin = sys.stdin
-stdout = sys.stdout
-stderr = sys.stderr
+Lists the objects in the current object.
+"""
+		return self.args(line, self.objects)
 
-CONNECTION = None
-OBJECT = None
+	def objects(self, id):
+		pass
+
+	## Orders ##################################
+	def do_orders(self, line):
+		"""\
+orders
+
+Lists the orders in the current object.
+"""
+		return self.args(line, self.orders)
+
+	def orders(self):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No object. \n")
+			return
+
+		print self.c.get_orders(o.id)
 
 def main():
-
-	finished = False
-	while not finished:
-		try:
-			if OBJECT == None:
-				sys.stdout.write("None -> ")
-			else:
-				sys.stdout.write("%s -> " % OBJECT.name)
-				
-			line = stdin.readline().strip()
-
-			command = string.split(line, " ", maxsplit=1)
-			if command[0] == "":
-				continue
-			elif command[0] == "exit":
-				sys.stdout.write("Exiting... \n")
-				finished = True
-			else:
-				if not fmap.has_key(command[0]):
-					sys.stdout.write("No such command \n")
-				else:
-					function = fmap[command[0]]
-
-					arguments = []
-					if len(command) == 2:
-						arguments = string.split(command[1], " ")
-					
-					apply(function, arguments)
-
-		except KeyboardInterrupt:
-			# Exit on a Ctrl-C
-			sys.stdout.write("\nExiting... \n")
-			finished = True
-
-		except Exception, e:
-			# Print Traceback
-			type, val, tb = sys.exc_info()
-			sys.stderr.write(string.join(traceback.format_exception(type, val, tb), ''))
+	m = PyTextClient()
+	while True:
+#		try:
+			m.cmdloop()
+#		except SystemExit, e:
+#			break
+#		except Exception, e:
+#			print e
+#			continue
 
 if __name__ == "__main__":
 	main()
