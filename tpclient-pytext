@@ -545,9 +545,9 @@ Inserts a order onto the current object.
 	## Time Stuff ##############################
 	def do_time(self, line):
 		"""\
-order_add 
+time
 
-Lists the orders in the current object.
+Returns the time till end of turn
 """
 		return self.args(line, self.time)
 
@@ -568,6 +568,22 @@ Lists the orders in the current object.
 			self.pprint("Turn ends: %i hours %i min %i seconds." % (hour, min, sec))
 		else:
 			self.pprint("Turn has ended.")
+			
+	##  Ping Stuff ##############################
+	def do_ping(self, line):
+		"""\
+ping 
+
+Pings the server.
+"""
+		return self.args(line, self.ping)
+
+	def ping(self):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.ping()
 
 def main():
 	m = PyTextClient()
