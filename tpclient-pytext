@@ -585,7 +585,7 @@ Pings the server.
 
 		r = self.c.ping()
 
-	## Object ##################################
+	## Category ##################################
 	def do_category(self, line):
 		"""\
 category id
@@ -605,7 +605,33 @@ Get the description for a category.
 			self.pprint("Name: " + r[0].name)
 			self.pprint("Desc: " + r[0].desc)
 		else:
-			self.pprint("No such object. \n")
+			self.pprint("No such category. \n")
+			
+	## Component ##################################
+	def do_component(self, line):
+		"""\
+component id
+
+Get the description for a component.
+"""
+		return self.args(line, self.component)
+		
+	def component(self, id):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_components(int(id))
+		if not failed(r[0]):
+			self.pprint("ID: " + str(r[0].id))
+			self.pprint("Base ID: " + str(r[0].base))
+			self.pprint("Used: " + str(r[0].used))
+			self.pprint("Types: " + str(r[0].used))
+			self.pprint("Name: " + str(r[0].name))
+			self.pprint("Contains: " + str(r[0].contains))
+			self.pprint("Language: " + str(r[0].language))
+		else:
+			self.pprint("No such component. \n")
 			
 def main():
 	m = PyTextClient()
