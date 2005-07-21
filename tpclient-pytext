@@ -623,10 +623,10 @@ Get the description for a category.
 		if not failed(r[0]):
 			self.pprint("ID: " + str(r[0].id))
 			self.pprint("Name: " + r[0].name)
-			self.pprint("Desc: " + r[0].desc)
+			self.pprint("Desc: " + r[0].description)
 		else:
 			self.pprint("No such category. \n")
-			
+		
 	## Component ##################################
 	def do_component(self, line):
 		"""\
@@ -644,16 +644,82 @@ Get the description for a component.
 		r = self.c.get_components(int(id))
 		if not failed(r[0]):
 			self.pprint("ID: " + str(r[0].id))
-			self.pprint("Base ID: " + str(r[0].base))
-			self.pprint("Used: " + str(r[0].used))
-			self.pprint("Types: " + str(r[0].used))
+			self.pprint("Time: " + str(r[0].modify_time))
+
+			categories = []
+			for category in self.c.get_categories(r[0].categories):
+				if not failed(category):
+					categories.append((category.name, category.description))
+				else:
+					categories.append("Failed to get category.")
+			
+			self.pprint("Categories: " + str(categories))
 			self.pprint("Name: " + str(r[0].name))
 			self.pprint("Description: " + str(r[0].description))
-			self.pprint("Contains: " + str(r[0].contains))
-			self.pprint("Language: " + str(netlib.clang.decode(r[0].language)))
+			self.pprint("Requirements: " + str(r[0].requirements))
+			
+			properties = []
+			for property_id, property_value in r[0].properties:
+				property = self.c.get_properties(property_id)
+				if not failed(property[0]):
+					properties.append((property[0].name, property_value))
+				else:
+					properties.append("Failed to get property.")
+			self.pprint("Properties: " + str(properties))
 		else:
 			self.pprint("No such component. \n")
+
+	## Design ##################################
+	def do_design(self, line):
+		"""\
+design id
+
+Get the description for a design.
+"""
+		return self.args(line, self.design)
+		
+	def design(self, id):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_designs(int(id))
+		if not failed(r[0]):
+			self.pprint("ID: " + str(r[0].id))
+			self.pprint("Time: " + str(r[0].modify_time))
+
+			categories = []
+			for category in self.c.get_categories(r[0].categories):
+				if not failed(category):
+					categories.append((category.name, category.description))
+				else:
+					categories.append("Failure to get category.")
 			
+			self.pprint("Categories: " + str(categories))
+			self.pprint("Name: " + str(r[0].name))
+			self.pprint("Description: " + str(r[0].description))
+			self.pprint("Used: " + str(r[0].used))
+			self.pprint("Owner: " + str(r[0].owner))
+			self.pprint("Requirements: " + str(r[0].requirements))
+			
+			properties = []
+			for property_id, property_value in r[0].properties:
+				property = self.c.get_properties(property_id)
+				if not failed(property):
+					properties.append((property[0].name, property_value))
+				else:
+					properties.append("Failure to get category.")
+			self.pprint("Properties: " + str(properties))
+		else:
+			self.pprint("No such component. \n")
+
+
+
+
+
+
+
+
 def main():
 	m = PyTextClient()
 	while True:
