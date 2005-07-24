@@ -700,25 +700,27 @@ Get the description for a design.
 			self.pprint("Description: " + str(r[0].description))
 			self.pprint("Used: " + str(r[0].used))
 			self.pprint("Owner: " + str(r[0].owner))
-			self.pprint("Requirements: " + str(r[0].requirements))
-			
+			self.pprint("Feedback: " + str(r[0].feedback))
+		
+			components = []
+			for component_id, number in r[0].components:
+				component = self.c.get_components(component_id)
+				if not failed(component):
+					components.append((component[0].name, number))
+				else:
+					components.append("Failure to get component.")
+			self.pprint("Components: " + str(components))
+
 			properties = []
-			for property_id, property_value in r[0].properties:
+			for property_id, property_value, property_display in r[0].properties:
 				property = self.c.get_properties(property_id)
 				if not failed(property):
-					properties.append((property[0].name, property_value))
+					properties.append((property[0].name, property_value, property_display))
 				else:
-					properties.append("Failure to get category.")
+					properties.append("Failure to get property.")
 			self.pprint("Properties: " + str(properties))
 		else:
-			self.pprint("No such component. \n")
-
-
-
-
-
-
-
+			self.pprint("No such design. \n")
 
 def main():
 	m = PyTextClient()
