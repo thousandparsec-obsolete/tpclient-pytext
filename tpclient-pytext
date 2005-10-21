@@ -712,10 +712,10 @@ Get the description for a design.
 			self.pprint("Components: " + str(components))
 
 			properties = []
-			for property_id, property_value, property_display in r[0].properties:
+			for property_id, property_display in r[0].properties:
 				property = self.c.get_properties(property_id)
 				if not failed(property):
-					properties.append((property[0].name, property_value, property_display))
+					properties.append((property[0].name, property_display))
 				else:
 					properties.append("Failure to get property.")
 			self.pprint("Properties: " + str(properties))
