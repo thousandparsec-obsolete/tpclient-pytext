@@ -1,0 +1,794 @@
+#!/usr/bin/env python 
+
+import os.path
+import string, sys, traceback
+
+try:
+	from tp import netlib
+except ImportError:
+	sys.path.append("../")
+	from tp import netlib
+
+failed = netlib.failed
+
+import cmd
+
+from types import *
+
+import urwid.curses_display
+import urwid
+
+def Text(text, type='normal', align="center"):
+	return urwid.AttrWrap(urwid.Text(text, align=align), type)
+
+# The layout looks like this
+#
+# +----------------+------+
+# | Current Object | Net  |
+# |                |      |
+# +----------------+------+
+# | Command window        |
+# +-----------------------+
+class TUI:
+
+	def __init__(self):
+		self.debug = 0
+		self.c=None
+		self.o=None
+		
+		self.ui = urwid.curses_display.Screen()
+
+		# The current window
+		current_list = [Text("Information about the current object will be displayed here.", align='left')]
+		current = urwid.ListBox(current_list)
+		current_title = Text("current title!", 'title')
+		current_win = urwid.Frame(body=current, header=current_title)
+
+		# The network window
+		network_list = [Text("Network information will appear here.", align='left')]
+		network = urwid.ListBox(network_list)
+		network_win = urwid.Frame(body=network, header=Text("Network", 'title'))
+	
+		# Put them in a grid
+		columns = urwid.Columns((current_win, network_win,), dividechars=1)
+		
+		# Command window
+		command = urwid.Edit()
+		prompt = urwid.Columns([('fixed', 1, Text('>')), command], 1, 1)
+		
+		command_title = Text("Command", 'title')
+		command_list = [command_title, prompt]
+		command_win = urwid.Pile(command_list, 1)
+
+		title = Text("tpclient-pytext version %i", 'title')
+		self.top = urwid.Frame(body=columns, header=title, footer=command_win, focus_part="footer")
+		
+		self.current = current
+		self.current_list = current_list
+		self.network = network
+		self.network_list = network_list
+		self.prompt = prompt
+		self.command = command
+		self.command_list = command_list
+
+		# Figure out where to store the user state
+		rc = os.path.expanduser("~")
+		if rc == "~":
+			rc = "."
+
+		rc = os.path.join(rc, ".tp")
+		if not os.path.exists(rc):
+			os.mkdir(rc)
+				
+		# Import the .pytext_history
+		file = os.path.join(rc, "pytext_history")
+		if os.path.exists(file):
+			self.pprint("Found history file: %s" % file)
+			data = open(file, "r+").read()
+				
+			self.history = string.split(data, "\n")[:-1]
+
+			import readline
+			for line in self.history:
+				if line.startswith("#"):
+					continue
+				readline.add_history(line)
+		else:
+			self.history = []
+		self.history_position = 0
+
+		# Import the .pytextrc
+		file = os.path.join(rc, "pytextrc")
+		if os.path.exists(file):
+			self.pprint("Found rc file: %s" % file)
+			data = open(file, "r+").read()
+				
+			for line in string.split(data, "\n")[:-1]:
+				if line.startswith("#"):
+					continue
+
+				self.pprint("Running line: %s" % line)
+
+	def main(self):
+		self.ui = urwid.curses_display.Screen()
+		self.ui.register_palette([
+			('title', 'black', 'dark cyan', 'standout'),
+			('normal', 'light gray', 'black', None),
+			('error', 'light red', 'black', None),
+			('sending', 'dark red', 'black', None),
+			('receiving', 'dark green', 'default', None),
+			])
+		self.ui.run_wrapper( self.run )
+
+	def run(self):
+		size = self.ui.get_cols_rows()
+
+		while True:
+			self.draw_screen( size )
+			keys = self.ui.get_input()
+			for k in keys:
+				if k == "window resize":
+					size = self.ui.get_cols_rows()
+					continue
+				self.keypress( size, k )
+	
+	def history_add(self, text):
+		self.history[0] = ""
+		self.history.insert(1, text)
+		self.history_position = 0
+	
+	def history_up(self, text):
+		self.history[self.history_position] = text
+		if self.history_position < len(self.history)-1:
+			self.history_position += 1
+		return self.history[self.history_position]
+
+	def history_down(self, text):
+		self.history[self.history_position] = text
+		if self.history_position > 0:
+			self.history_position -= 1
+		return self.history[self.history_position]
+	
+	def keypress(self, size, k):
+		# Remove any errors if there where any
+		if len(self.command_list) > 2:
+			# Showing an error message
+			if isinstance(self.command_list[1], urwid.AttrWrap):
+				del self.command_list[1]
+				
+			# Remove the showning tab completion
+			if isinstance(self.command_list[-1], urwid.GridFlow):
+				if k in ("enter", "up", "down", "tab"):
+					del self.command_list[-1]
+
+		# Preform the command
+		if k == "enter":
+			command = self.command.get_edit_text()
+			self.command.set_edit_text('')
+
+			if command.find(" ") >= 0:
+				name, arguments = command.split(" ", 1)
+			elif len(command) > 0:
+				name, arguments = command, ""
+			else:
+				return
+
+			# Add the command to the history
+			self.history_add(command)
+
+			if hasattr(self, "do_" + name):
+				getattr(self, "do_" + name)(arguments)
+				return
+
+			if hasattr(self, name):
+				try:
+					getattr(self, name)(*arguments.split(" "))
+				except:
+					pass
+				return
+
+			# Arg! We got a bad command!
+			self.command_list.insert(1, Text("Unknown command %s" % name, 'error', 'left'))
+			
+		# Scroll up one item
+		if k == "up":
+			self.command.set_edit_text(self.history_up(self.command.get_edit_text()))
+			return
+
+		# Scroll down one item
+		if k == "down":
+			self.command.set_edit_text(self.history_down(self.command.get_edit_text()))
+			return
+		
+		# Try and complete the current option
+		if k == "tab":
+			command = self.command.get_edit_text()
+
+			commands = command.split(' ', 1)
+			if len(commands) > 1:
+				complete = getattr(self, 'complete_'+commands[0], None)
+				if complete:
+					possible = complete(commands[1])
+				else:
+					possible = []
+			else:
+				possible = [x[3:] + ' ' for x in dir(self) if x.startswith('do_'+command)] \
+					+ [x + ' ' for x in dir(self) if x.startswith(command) and hasattr(x, '__doc__')]
+
+			if len(possible) == 0:
+				return
+			elif len(possible) == 1:
+				possible = possible[0]
+				if not possible.startswith(command):
+					possible = commands[0] + " " + possible
+					
+				self.command.set_edit_text(possible)
+				self.command.set_edit_pos(len(possible))
+			else:
+				possible.sort()
+			
+				width = 0
+				possible_widgets = []
+				for p in possible:
+					if len(p) > width:
+						width = len(p)
+					possible_widgets.append(Text(p, align='left'))
+
+				self.command_list.append(urwid.GridFlow(possible_widgets, width, 1, 0, 'left'))
+	
+			return
+		
+		# Search backwards
+		if k == "ctrl r":
+			return
+		
+		self.top.keypress( size, k )
+			
+	def draw_screen(self, size):
+		canvas = self.top.render( size, focus=True )
+		self.ui.draw_screen( size, canvas )
+
+	def prompt(self):
+		h = "None"
+		if self.c != None:
+			h = self.c.host
+		u = "None"
+		if self.c != None and hasattr(self.c, "username"):
+			u = self.c.username
+		o = "None"
+		if self.o != None:
+			o = self.o.name
+
+		prompt = "%s@%s '%s' -> " % (u, h, o)
+		self.prompt[0].widget_list[0] = ('fixed', len(prompt), Text(prompt))
+
+
+	## Debug Functions #########################
+	def debug(self):
+		"""\
+Toggle debug mode.
+"""
+		self.debug = not self.debug
+		if self.c != None:
+			self.c.debug = self.debug
+		
+	## Shell Functions #########################
+	def do_shell(self, args):
+		"""\
+Pass command to a system shell.
+"""
+		os.system(args)
+
+	## Python Functions ########################
+	def do_exec(self, line):
+		"""\
+exec *python_code_to_execute
+
+Execute python code following the exec command.
+Nothing will presist after the command executes.
+
+For example,
+
+-> exec print 2 + 2
+4
+-> exec a = []
+-> exec print a
+name 'a' is not defined
+"""
+		exec(line)
+		
+	def do_print(self, line):
+		"""\
+print object_to_print
+
+Execute python code following the exec command. For example,
+
+user@localhost 'The Universe' -> print 2 2
+2
+2
+user@localhost 'The Universe' -> print self.o
+<netlib.objects.ObjectExtra.Universe.Universe @ 0x4020fe0c>
+"""
+		for i in string.split(line):
+			exec("print %s" % i)
+
+	def traceback(self):
+		"""\
+traceback
+
+Print the traceback for the last error.
+"""
+		import traceback, pprint
+		type, val, tb = sys.exc_info()
+		self.pprint(string.join(traceback.format_exception(type, val, tb), ''))
+
+	## Exit ####################################
+	def exit(self):
+		"""\
+exit, quit
+
+Leave the client.
+"""
+		return -1
+
+	do_quit = do_exit
+	do_EOF = do_exit
+
+	## Connect #################################
+	def connect(self, host, port=6923):
+		"""\
+connect host [port]
+
+Connect to a TP server on host, if port is not specified it
+uses port 6329.
+"""
+		self.pprint("Connecting to %s on %s ... \n" % (host, port))
+		
+		self.c = netlib.Connection(host, port, debug=self.debug)
+		if not self.c.connect():
+			self.c = None
+			self.o = None
+			self.pprint("Could not connect to the server. \n")
+		else:
+			self.o = None
+			self.pprint("Connected. \n")
+
+	def complete_connect(self, t):
+		possible = ["localhost", "127.0.0.1"]
+		return [x for x in possible if x.startswith(t)]
+
+	## Disconnect ##############################
+	def disconnect(self):
+		"""\
+disconnect
+
+Disconnect from the server.
+"""
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		self.c.disconnect()
+		self.c = None
+		self.pprint("Disconnected. \n")
+		
+	## Login ###################################
+	def login(self, username, password):
+		"""\
+login username password
+
+Login with a username and password.
+"""
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		if not self.c.login(username, password):
+			self.pprint("Could not login. \n")
+		else:
+			self.pprint("Login OK. \n")
+
+	## Object ##################################
+	def object(self, id):
+		"""\
+object id
+
+Enter into the object so you can select.
+"""
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_objects(int(id))
+		if not failed(r[0]):
+			self.o = r[0]
+		else:
+			self.pprint("No such object. \n")
+	
+	## IDs #####################################
+	def ids(self, id):
+		"""\
+ids type
+
+Gets the ids for type.
+"""
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_object_ids()
+		if not failed(r):
+			self.pprint(repr(r))
+		else:
+			self.pprint("No such object. \n")
+	
+	## Board ##################################
+	def board(self, id):
+		"""\
+board id
+
+Enter into the board so you can select messages.
+"""
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_boards(int(id))
+		if not failed(r[0]):
+			self.o = r[0]
+		else:
+			self.pprint("No such board. \n")
+
+
+	## Messages ##################################
+	def messages(self, *slots):
+		"""\
+messages [slot]
+
+Lists the message in the current board.
+"""
+		slots = list(slots)
+		for i in range(0, len(slots)):
+			slots[i] = int(slots[i])
+		
+		if len(slots) == 0:
+			slots = range(0, self.o.number)
+		
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No board. \n")
+			return
+
+		messages = self.c.get_messages(self.o.id, slots)
+		for message in messages:
+			if not failed(message):
+				self.pprint("""\
+
+%(subject)s
+-------------------------
+%(body)s
+""" % message.__dict__)
+		
+	def message_remove(self, *slots):
+		"""\
+message_remove [slot]
+
+Remove an message from the current board object.
+"""
+		slots = list(slots)
+		for i in range(0, len(slots)):
+			slots[i] = int(slots[i])
+		
+		if len(slots) == 0:
+			slots = range(0, self.o.number)
+		
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No board. \n")
+			return
+
+		r = self.c.remove_messages(self.o.id, slots)
+		if type(r) == ListType:
+			for i in r:
+				self.pprint(str(i))
+		else:
+			self.pprint(str(r))
+
+	## Add Order ###############################
+	def order_insert(self, slot, type, *args):
+		"""\
+message_insert slot subject body
+
+Adds a new message to the board.
+"""
+		slot = int(slot)
+		args = list(args)
+
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No object. \n")
+			return
+
+#		self.pprint(str(apply(self.c.insert_order, (self.o.id, slot, type,) + tuple(args))))
+
+	## Show ####################################
+	def show(self, name=""):
+		"""\
+show [name]
+
+Displays the value of an attribute on an object.
+"""
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No object. \n")
+			return
+
+		if name == "":
+			for name in self.o.__dict__.keys():
+				if not name.startswith('_'):
+					self.show(name)
+		elif name == "object":
+			self.pprint("%s" % self.o)
+		else:
+			if hasattr(self.o, name):
+				self.pprint("%s: %s \n" % (name, getattr(self.o, name)))
+			else:
+				self.pprint("No such attribute.")
+	
+	## Orders ##################################
+	def orders(self, *slots):
+		"""\
+orders [slot]
+
+Lists the orders in the current object.
+"""
+		slots = list(slots)
+		for i in range(0, len(slots)):
+			slots[i] = int(slots[i])
+		
+		if len(slots) == 0:
+			slots = range(0, self.o.order_number)
+		
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No object. \n")
+			return
+
+		r = self.c.get_orders(self.o.id, slots)
+		if type(r) == ListType:
+			for i in r:
+				self.pprint(str(i))
+		else:
+			self.pprint(str(r))
+		
+	def order_remove(self, *slots):
+		"""\
+order_remove [slot]
+
+Remove an order from the current object.
+"""
+		slots = list(slots)
+		for i in range(0, len(slots)):
+			slots[i] = int(slots[i])
+		
+		if len(slots) == 0:
+			slots = range(0, self.o.order_number)
+		
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No object. \n")
+			return
+
+		r = self.c.remove_orders(self.o.id, slots)
+		if type(r) == ListType:
+			for i in r:
+				self.pprint(str(i))
+		else:
+			self.pprint(str(r))
+
+	## Add Order ###############################
+	def order_insert(self, slot, type, *args):
+		"""\
+order_insert slot type args
+
+order_insert 1 NOp 23
+order_insert -1 Move 2 6 9
+
+Inserts a order onto the current object.
+"""
+		slot = int(slot)
+		args = list(args)
+
+		if type.lower() == 'nop':
+			type = 0
+			args[0] = int(args[0])
+		elif type.lower() == 'move':
+			type = 1
+			args[0] = int(args[0])
+			args[1] = int(args[1])
+			args[2] = int(args[2])
+
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+		if self.o == None:
+			self.pprint("No object. \n")
+			return
+
+		self.pprint(str(apply(self.c.insert_order, (self.o.id, slot, type,) + tuple(args))))
+
+	## Time Stuff ##############################
+	def time(self):
+		"""\
+time
+
+Returns the time till end of turn
+"""
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.time()
+		if r[0]:
+			sh = 60*60
+			sm = 60
+			
+			hour = int(r[1]/sh)
+			min = int((r[1]-hour*sh)/sm)
+			sec = r[1]-hour*sh-min*sm
+
+			self.pprint("Turn ends: %i hours %i min %i seconds." % (hour, min, sec))
+		else:
+			self.pprint("Turn has ended.")
+			
+	##  Ping Stuff ##############################
+	def ping(self):
+		"""\
+ping 
+
+Pings the server.
+"""
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.ping()
+
+	## Category ##################################
+	def category(self, id):
+		"""\
+category id
+
+Get the description for a category.
+"""
+		
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_categories(int(id))
+		if not failed(r[0]):
+			self.pprint("ID: " + str(r[0].id))
+			self.pprint("Name: " + r[0].name)
+			self.pprint("Desc: " + r[0].description)
+		else:
+			self.pprint("No such category. \n")
+		
+	## Component ##################################
+	def component(self, id):
+		"""\
+component id
+
+Get the description for a component.
+"""
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_components(int(id))
+		if not failed(r[0]):
+			self.pprint("ID: " + str(r[0].id))
+			self.pprint("Time: " + str(r[0].modify_time))
+
+			categories = []
+			for category in self.c.get_categories(r[0].categories):
+				if not failed(category):
+					categories.append((category.name, category.description))
+				else:
+					categories.append("Failed to get category.")
+			
+			self.pprint("Categories: " + str(categories))
+			self.pprint("Name: " + str(r[0].name))
+			self.pprint("Description: " + str(r[0].description))
+			self.pprint("Requirements: " + str(r[0].requirements))
+			
+			properties = []
+			for property_id, property_value in r[0].properties:
+				property = self.c.get_properties(property_id)
+				if not failed(property[0]):
+					properties.append((property[0].name, property_value))
+				else:
+					properties.append("Failed to get property.")
+			self.pprint("Properties: " + str(properties))
+		else:
+			self.pprint("No such component. \n")
+
+	## Design ##################################
+	def design(self, id):
+		"""\
+design id
+
+Get the description for a design.
+"""
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_designs(int(id))
+		if not failed(r[0]):
+			self.pprint("ID: " + str(r[0].id))
+			self.pprint("Time: " + str(r[0].modify_time))
+
+			categories = []
+			for category in self.c.get_categories(r[0].categories):
+				if not failed(category):
+					categories.append((category.name, category.description))
+				else:
+					categories.append("Failure to get category.")
+			
+			self.pprint("Categories: " + str(categories))
+			self.pprint("Name: " + str(r[0].name))
+			self.pprint("Description: " + str(r[0].description))
+			self.pprint("Used: " + str(r[0].used))
+			self.pprint("Owner: " + str(r[0].owner))
+			self.pprint("Feedback: " + str(r[0].feedback))
+		
+			components = []
+			for component_id, number in r[0].components:
+				component = self.c.get_components(component_id)
+				if not failed(component):
+					components.append((component[0].name, number))
+				else:
+					components.append("Failure to get component.")
+			self.pprint("Components: " + str(components))
+
+			properties = []
+			for property_id, property_display in r[0].properties:
+				property = self.c.get_properties(property_id)
+				if not failed(property):
+					properties.append((property[0].name, property_display))
+				else:
+					properties.append("Failure to get property.")
+			self.pprint("Properties: " + str(properties))
+		else:
+			self.pprint("No such design. \n")
+
+def main():
+	m = PyTextClient()
+	while True:
+		try:
+			m.main()
+		except SystemExit, e:
+			break
+		except Exception, e:
+			type, val, tb = sys.exc_info()
+			print ''.join(traceback.format_exception(type, val, tb))
+			continue
+		else:
+			return
+
+if __name__ == "__main__":
+	main()
+
