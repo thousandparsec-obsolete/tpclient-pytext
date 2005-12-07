@@ -223,10 +223,10 @@ uses port 6329.
 """
 		return self.args(line, self.connect)
 
-	def connect(self, host, port=6923):
-		self.pprint("Connecting to %s on %s ... \n" % (host, port))
+	def connect(self, host):
+		self.pprint("Connecting to %s ... \n" % (host,))
 		
-		self.c = netlib.Connection(host, port, debug=self.debug)
+		self.c = netlib.Connection(host, debug=self.debug)
 		if not self.c.connect():
 			self.c = None
 			self.o = None
