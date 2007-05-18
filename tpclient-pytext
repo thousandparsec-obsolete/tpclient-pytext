@@ -404,7 +404,7 @@ Remove an message from the current board object.
 		else:
 			self.pprint(str(r))
 
-	## Add Order ###############################
+	## Add Message ###############################
 	def do_message_insert(self, line):
 		"""\
 message_insert slot subject body
@@ -413,9 +413,9 @@ Adds a new message to the board.
 """
 		return self.args(line, self.message_insert)
 
-	def order_insert(self, slot, type, *args):
+	def message_insert(self, slot, type, *args):
 		slot = int(slot)
-		args = list(args)
+		args = [int(x) for x in args]
 
 		if self.c == None:
 			self.pprint("Not connected. \n")
@@ -494,9 +494,9 @@ Lists the orders in the current object.
 		r = self.c.get_orders(self.o.id, slots)
 		if type(r) == ListType:
 			for i in r:
-				self.pprint(str(i))
+				self.pprint(repr(i))
 		else:
-			self.pprint(str(r))
+			self.pprint(repr(r))
 		
 	def do_order_remove(self, line):
 		"""\
@@ -542,7 +542,7 @@ Inserts a order onto the current object.
 
 	def order_insert(self, slot, type, *args):
 		slot = int(slot)
-		args = list(args)
+		args = [int(x) for x in args]
 
 		if type.lower() == 'nop':
 			type = 0
