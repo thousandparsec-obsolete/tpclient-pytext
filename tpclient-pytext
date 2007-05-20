@@ -274,10 +274,33 @@ Login with a username and password.
 			self.pprint("Not connected. \n")
 			return
 
-		if not self.c.login(username, password):
+		if failed(self.c.login(username, password)):
 			self.pprint("Could not login. \n")
 		else:
 			self.pprint("Login OK. \n")
+
+	## Login ###################################
+	def do_games(self, line):
+		"""\
+games username password
+
+Login with a username and password.
+"""
+		return self.args(line, self.games)
+
+	def games(self):
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		games = self.c.games()
+		if not failed(games):
+			self.pprint("Games:")
+			for game in games:
+				self.pprint("\t%s\n\t\t%s-%s on %s-%s\n\t\t%s" % (game.name, game.rule, game.rulever, game.sertype, game.server, game.optional))
+			self.pprint("")
+		else:
+			self.pprint("Could not get a list of games. \n")
 
 	## Object ##################################
 	def do_object(self, line):
@@ -492,7 +515,7 @@ Lists the orders in the current object.
 			return
 
 		r = self.c.get_orders(self.o.id, slots)
-		if type(r) == ListType:
+		if type(r) in (ListType, TupleType):
 			for i in r:
 				self.pprint(repr(i))
 		else:
