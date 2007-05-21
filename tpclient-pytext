@@ -87,7 +87,7 @@ class PyTextClient(cmd.Cmd):
 		else:
 			arguments = string.split(line, " ")
 
-		return apply(function, arguments)
+		return function(*arguments)
 
 	def postcmd(self, stop, line):
 		self.promptset()
@@ -423,9 +423,9 @@ Remove an message from the current board object.
 		r = self.c.remove_messages(self.o.id, slots)
 		if type(r) == ListType:
 			for i in r:
-				self.pprint(str(i))
+				self.pprint(repr(i))
 		else:
-			self.pprint(str(r))
+			self.pprint(repr(r))
 
 	## Add Message ###############################
 	def do_message_insert(self, line):
@@ -547,9 +547,9 @@ Remove an order from the current object.
 		r = self.c.remove_orders(self.o.id, slots)
 		if type(r) == ListType:
 			for i in r:
-				self.pprint(str(i))
+				self.pprint(repr(i))
 		else:
-			self.pprint(str(r))
+			self.pprint(repr(r))
 
 	## Add Order ###############################
 	def do_order_insert(self, line):
@@ -583,7 +583,7 @@ Inserts a order onto the current object.
 			self.pprint("No object. \n")
 			return
 
-		self.pprint(str(apply(self.c.insert_order, (self.o.id, slot, type,) + tuple(args))))
+		self.pprint(repr(self.c.insert_order(self.o.id, slot, type, *args)))
 
 	## Time Stuff ##############################
 	def do_time(self, line):
