@@ -9,6 +9,9 @@ except ImportError:
 	sys.path.append("../")
 	from tp import netlib
 
+from tp.netlib.objects import OrderDescs
+from tp.netlib.objects.constants import *
+
 failed = netlib.failed
 
 import cmd
@@ -490,6 +493,46 @@ Lists the objects in the current object.
 	def objects(self, id):
 		pass
 
+
+	## Orderdesc ##################################
+	def do_order_desc(self, line):
+		"""\
+order_desc id
+
+Prints out a bunch of information about an order description.
+"""
+		return self.args(line, self.order_desc)
+
+	def order_desc(self, *slots):
+		slots = list(slots)
+		for i in range(0, len(slots)):
+			slots[i] = int(slots[i])
+		
+		if len(slots) == 0:
+			slots = range(0, self.o.order_number)
+		
+		if self.c == None:
+			self.pprint("Not connected. \n")
+			return
+
+		r = self.c.get_orderdescs(slots)
+		if not failed(r):
+			for i in r:
+				if failed(i):
+					self.pprint(repr(i))
+					continue
+
+				i.register()
+				descclass = i.build()
+				self.pprint(repr(descclass))
+				self.pprint("Arguments:")
+				for name, t in descclass.names:
+					self.pprint("\t%s - %s (%s)" % (name, descclass.ARG_NAMEMAP[t], descclass.ARG_STRUCTMAP[t][0]))
+				self.pprint("Structure: %r" % descclass.substruct)
+		else:
+			self.pprint(repr(r))
+
+
 	## Orders ##################################
 	def do_orders(self, line):
 		"""\
@@ -552,6 +595,37 @@ Remove an order from the current object.
 			self.pprint(repr(r))
 
 	## Add Order ###############################
+	def do_order_help(self, line):
+		"""\
+order_help type
+
+Gives information on the arguments needed for an order insert for that order type.
+"""
+		return self.args(line, self.order_help)
+
+	def order_help(self, name):
+		ARG_HELP = {
+			ARG_ABS_COORD:	"(x, y, z)",
+			ARG_TIME: 		"time",
+			ARG_OBJECT:		"object_id",
+			ARG_PLAYER:		"player_id",
+			ARG_REL_COORD:	"object_id, (x, y, z)",
+			ARG_RANGE:		"value",
+			ARG_LIST:		"[(choice1_id, choice1_amount), (choice2_id, choice2_amount)]",
+			ARG_STRING:		"'string'",
+		}
+		
+		for descclass in OrderDescs().values():
+			if descclass._name.lower().replace(' ', '') == name.lower():
+				self.pprint(repr(descclass))
+				self.pprint(repr(descclass.doc))
+				
+				s = ""
+				for argname, t in descclass.names:
+					s+= ARG_HELP[t] + ", "
+				s = s[:-2]
+				self.pprint("order_insert <slot> %s %s" % (name, s))
+
 	def do_order_insert(self, line):
 		"""\
 order_insert slot type args
@@ -561,20 +635,13 @@ order_insert -1 Move 2 6 9
 
 Inserts a order onto the current object.
 """
-		return self.args(line, self.order_insert)
+		slot, name, arguments = line.split(" ", 2)
+		args = eval("[%s]" % arguments)
+		print args
+		return self.order_insert(int(slot), name, args)
 
-	def order_insert(self, slot, type, *args):
+	def order_insert(self, slot, name, args):
 		slot = int(slot)
-		args = [int(x) for x in args]
-
-		if type.lower() == 'nop':
-			type = 0
-			args[0] = int(args[0])
-		elif type.lower() == 'move':
-			type = 1
-			args[0] = int(args[0])
-			args[1] = int(args[1])
-			args[2] = int(args[2])
 
 		if self.c == None:
 			self.pprint("Not connected. \n")
@@ -583,7 +650,88 @@ Inserts a order onto the current object.
 			self.pprint("No object. \n")
 			return
 
-		self.pprint(repr(self.c.insert_order(self.o.id, slot, type, *args)))
+		for descclass in OrderDescs().values():
+			if descclass._name.lower().replace(' ', '') != name.lower():
+				continue
+
+			orderargs = [0, self.o.id, slot, descclass.subtype, 0, []]
+			for name, t in descclass.names:
+				arg = args.pop(0)
+				if t is ARG_ABS_COORD:
+					if not isinstance(arg, (tuple, list)):
+						raise TypeError('%s (Absolute Position) must be a tuple or a list' % name)
+					if not len(arg) == 3:
+						raise TypeError('%s (Absolute Position) must be 3 arguments' % name)
+					for x in arg:
+						if not isinstance(x, (int, long)):
+							raise TypeError('%s (Absolute Position) must have int (or long) arguments not %r' % (name, x))
+						orderargs.append(x)
+				elif t is ARG_TIME:
+					orderargs.append(0)
+					if not isinstance(arg, (int, long)):
+						raise TypeError('%s (Time) must have int (or long) arguments not %r' % (name, arg))
+					orderargs.append(arg)	
+
+				elif t is ARG_OBJECT:
+					if not isinstance(arg, (int, long)):
+						raise TypeError('%s (Object ID) must have int (or long) arguments not %r' % (name, arg))
+					orderargs.append(arg)	
+
+				elif t is ARG_PLAYER:
+					orderargs.append(0)
+					if not isinstance(arg, (int, long)):
+						raise TypeError('%s (Player ID) must have int (or long) arguments not %r' % (name, arg))
+					orderargs.append(arg)	
+
+				elif t is ARG_REL_COORD:
+					# Relative to what
+					if not isinstance(arg, (int, long)):
+						raise TypeError('%s (Relative Coordinate) must have int (or long) arguments not %r' % (name, arg))
+					orderargs.append(arg)	
+					# Position part
+					arg = args.pop(0)
+					if not isinstance(arg, (tuple, list)):
+						raise TypeError('%s (Relative Coordinate) must be a tuple or a list' % name)
+					if not len(arg) == 3:
+						raise TypeError('%s (Relative Coordinate) must be 3 arguments' % name)
+					for x in arg:
+						if not isinstance(x, (int, long)):
+							raise TypeError('%s (Relative Coordinate) must have int (or long) arguments not %r' % (name, x))
+						orderargs.append(x)
+			
+				elif t is ARG_RANGE:
+					orderargs.append(0)
+					orderargs.append(0)
+					orderargs.append(0)
+					if not isinstance(arg, (int, long)):
+						raise TypeError('%s (Player ID) must have int (or long) arguments not %r' % (name, arg))
+					orderargs.append(arg)	
+
+				elif t is ARG_LIST:
+					orderargs.append([])
+					if not isinstance(arg, (tuple, list)):
+						raise TypeError('%s (List) must be a tuple or a list' % name)
+
+					t = []
+					for x in arg:
+						if not isinstance(x, (tuple, list)):
+							raise TypeError('%s (List) must be a tuple or a list or tuple/list' % name)
+						if not len(x) == 2:
+							raise TypeError('%s (List) must be 2 in length' % name)
+						for y in x:
+							if not isinstance(y, (int, long)):
+								raise TypeError('%s (List) must have int (or long) arguments not %r' % (name, x))
+
+						t.append(x)
+					orderargs.append(t)
+				elif t is ARG_STRING:
+					orderargs.append(0)
+					if not isinstance(arg, (type(''), unicode)):
+						raise TypeError('%s (String) must be a string not %r' % (name, arg))
+					orderargs.append(arg)
+
+			print descclass, orderargs
+			self.pprint(repr(self.c.insert_order(self.o.id, slot, descclass(*orderargs))))
 
 	## Time Stuff ##############################
 	def do_time(self, line):
