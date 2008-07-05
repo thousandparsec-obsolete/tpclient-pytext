@@ -530,9 +530,8 @@ Prints out a bunch of information about an order description.
 				descclass = i.build()
 				self.pprint(repr(descclass))
 				self.pprint("Arguments:")
-				for name, t in descclass.names:
-					self.pprint("\t%s - %s (%s)" % (name, descclass.ARG_NAMEMAP[t], descclass.ARG_STRUCTMAP[t][0]))
-				self.pprint("Structure: %r" % descclass.substruct)
+				for property in descclass.properties:
+					self.pprint("\t%s - %s %s" % (property.name, property, property.structures))
 		else:
 			self.pprint(repr(r))
 
@@ -655,84 +654,10 @@ Inserts a order onto the current object.
 			return
 
 		for descclass in OrderDescs().values():
-			if descclass._name.lower().replace(' ', '') != name.lower():
+			if descclass._name.lower().replace(' ', '') != name.lower() and str(descclass.subtype) != name:
 				continue
 
-			orderargs = [0, self.o.id, slot, descclass.subtype, 0, []]
-			for name, t in descclass.names:
-				arg = args.pop(0)
-				if t is ARG_ABS_COORD:
-					if not isinstance(arg, (tuple, list)):
-						raise TypeError('%s (Absolute Position) must be a tuple or a list' % name)
-					if not len(arg) == 3:
-						raise TypeError('%s (Absolute Position) must be 3 arguments' % name)
-					for x in arg:
-						if not isinstance(x, (int, long)):
-							raise TypeError('%s (Absolute Position) must have int (or long) arguments not %r' % (name, x))
-						orderargs.append(x)
-				elif t is ARG_TIME:
-					orderargs.append(0)
-					if not isinstance(arg, (int, long)):
-						raise TypeError('%s (Time) must have int (or long) arguments not %r' % (name, arg))
-					orderargs.append(arg)	
-
-				elif t is ARG_OBJECT:
-					if not isinstance(arg, (int, long)):
-						raise TypeError('%s (Object ID) must have int (or long) arguments not %r' % (name, arg))
-					orderargs.append(arg)	
-
-				elif t is ARG_PLAYER:
-					orderargs.append(0)
-					if not isinstance(arg, (int, long)):
-						raise TypeError('%s (Player ID) must have int (or long) arguments not %r' % (name, arg))
-					orderargs.append(arg)	
-
-				elif t is ARG_REL_COORD:
-					# Relative to what
-					if not isinstance(arg, (int, long)):
-						raise TypeError('%s (Relative Coordinate) must have int (or long) arguments not %r' % (name, arg))
-					orderargs.append(arg)	
-					# Position part
-					arg = args.pop(0)
-					if not isinstance(arg, (tuple, list)):
-						raise TypeError('%s (Relative Coordinate) must be a tuple or a list' % name)
-					if not len(arg) == 3:
-						raise TypeError('%s (Relative Coordinate) must be 3 arguments' % name)
-					for x in arg:
-						if not isinstance(x, (int, long)):
-							raise TypeError('%s (Relative Coordinate) must have int (or long) arguments not %r' % (name, x))
-						orderargs.append(x)
-			
-				elif t is ARG_RANGE:
-					orderargs.append(0)
-					orderargs.append(0)
-					orderargs.append(0)
-					if not isinstance(arg, (int, long)):
-						raise TypeError('%s (Player ID) must have int (or long) arguments not %r' % (name, arg))
-					orderargs.append(arg)	
-
-				elif t is ARG_LIST:
-					orderargs.append([])
-					if not isinstance(arg, (tuple, list)):
-						raise TypeError('%s (List) must be a tuple or a list' % name)
-
-					t = []
-					for x in arg:
-						if not isinstance(x, (tuple, list)):
-							raise TypeError('%s (List) must be a tuple or a list or tuple/list' % name)
-						if not len(x) == 2:
-							raise TypeError('%s (List) must be 2 in length' % name)
-						for y in x:
-							if not isinstance(y, (int, long)):
-								raise TypeError('%s (List) must have int (or long) arguments not %r' % (name, x))
-
-						t.append(x)
-					orderargs.append(t)
-				elif t is ARG_STRING:
-					orderargs.append(0)
-					if not isinstance(arg, (type(''), unicode)):
-						raise TypeError('%s (String) must be a string not %r' % (name, arg))
-					orderargs.append(arg)
+			orderargs = [0, self.o.id, slot, descclass.subtype, 0, []] + args
 
 			print descclass, orderargs
 			self.pprint(repr(self.c.insert_order(self.o.id, slot, descclass(*orderargs))))
